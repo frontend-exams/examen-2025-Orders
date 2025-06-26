@@ -18,21 +18,64 @@ import ImageCard from '../../components/ImageCard'
 
 export default function OrdersScreen ({ navigation, route }) {
   const [restaurant, setRestaurant] = useState({})
+  const [orders, setOrders] = useState([]) // Es una lista con objetos de tipo pedido
+  const [restaurantAnalytics, setRestaurantAnalytics] = useState({})
 
   useEffect(() => {
     fetchRestaurantDetail()
+    fetchRestaurantOrders()
+    fetchRestaurantAnalytics()
   }, [route])
 
+  // Los Restautant Analytics serán usados para el ejercicio 3
   const fetchRestaurantAnalytics = async () => {
-
+    try {
+      const fetchedAnalytics = await getRestaurantAnalytics(route.params.id) // Toma como parámetro el id del restaurante---> TENEMOS QUE IMPLEMENTAR ESTE ENDPOINT
+      setRestaurantAnalytics(fetchedAnalytics) // A partir de ahora podemos usar el objeto actualizado restaurantAnalytics para el diseño.
+    } catch (error) {
+      showMessage({
+        message: `There was an error while retrieving restaurant analytics. ${error}`,
+        type: 'error',
+        style: GlobalStyles.flashStyle,
+        titleStyle: GlobalStyles.flashTextStyle
+      })
+    }
   }
-
+  // Los pedidos del restaurante son necesarios para el ejercicio 1
   const fetchRestaurantOrders = async () => {
-
+    try {
+      const fetchedOrders = await getRestaurantOrders(route.params.id) // Hemos conocido este parámetro viéndolo en el navigate de la pantalla RestaurantDetails
+      setOrders(fetchedOrders)
+    } catch (error) {
+      showMessage({
+        message: `There was an error while retrieving restaurant orders. ${error}`,
+        type: 'error',
+        style: GlobalStyles.flashStyle,
+        titleStyle: GlobalStyles.flashTextStyle
+      })
+    }
   }
-
+  // HandleNextStatus será usado para el ejercicio 4, tiene que ver con el cambio de estado
   const handleNextStatus = async (order) => {
-
+    try {
+      await nextStatus(order) // Esto ya actualiza el pedido (hace un patch interno)
+      showMessage({
+        message: `Order ${order.id} status updated`,
+        type: 'success',
+        style: GlobalStyles.flashStyle,
+        titleStyle: GlobalStyles.flashTextStyle
+      })
+      // Actualizamos la página entera haciendo el fetch
+      fetchRestaurantOrders() // Aquí ya se encontrará el pedido actualizado
+      fetchRestaurantAnalytics() // Las analíticas actualizadas por si acaso
+    } catch (error) {
+      showMessage({
+        message: `There was an error while changing order status. ${error}`,
+        type: 'error',
+        style: GlobalStyles.flashStyle,
+        titleStyle: GlobalStyles.flashTextStyle
+      })
+    }
   }
 
   const renderAnalytics = () => {
@@ -44,7 +87,7 @@ export default function OrdersScreen ({ navigation, route }) {
                 Invoiced today
               </TextRegular>
               <TextSemiBold textStyle={styles.text}>
-              TO DO
+              {restaurantAnalytics.invoicedToday}
               </TextSemiBold>
             </View>
             <View style={styles.analyticsCell}>
@@ -52,7 +95,7 @@ export default function OrdersScreen ({ navigation, route }) {
                 #Pending orders
               </TextRegular>
               <TextSemiBold textStyle={styles.text}>
-              TO DO
+              {restaurantAnalytics.numPendingOrders}
               </TextSemiBold>
             </View>
           </View>
@@ -63,7 +106,7 @@ export default function OrdersScreen ({ navigation, route }) {
                   #Delivered today
                 </TextRegular>
                 <TextSemiBold textStyle={styles.text}>
-                TO DO
+                {restaurantAnalytics.numDeliveredTodayOrders}
                 </TextSemiBold>
               </View>
               <View style={styles.analyticsCell}>
@@ -71,7 +114,7 @@ export default function OrdersScreen ({ navigation, route }) {
                   #Yesterday orders
                 </TextRegular>
                 <TextSemiBold textStyle={styles.text}>
-                TO DO
+                {restaurantAnalytics.numYesterdayOrders}
                 </TextSemiBold>
               </View>
           </View>
@@ -89,6 +132,8 @@ export default function OrdersScreen ({ navigation, route }) {
             <TextRegular textStyle={styles.description}>{restaurant.restaurantCategory ? restaurant.restaurantCategory.name : ''}</TextRegular>
           </View>
         </ImageBackground>
+        {/* En el propio renderHeader metemos el renderAnalytics */}
+        {renderAnalytics()} {/* POR DIOS NO OLVIDAR PONER LOS PARÉNTESIS DE LAS FUNCIONESSSSSSSS */}
       </View>
     )
   }
@@ -105,9 +150,55 @@ export default function OrdersScreen ({ navigation, route }) {
         return deliveredOrderImage
     }
   }
-
+  // Renderizamos el pedido para el ejercicio 1
   const renderOrder = ({ item }) => {
-
+    return ( // Que no se te olvide el return que por esto la cagaste en el anterior examen
+      <ImageCard
+          imageUri={getOrderImage(item.status)} // Así de fácil es poner una imagen cuando la tienes en local
+          title= {`Order created at ${item.createdAt}`}
+      >
+      <View style={{ flex: 1, marginBottom: 40 }}>
+      <TextRegular style={styles.orderText}>Status:{item.status}</TextRegular>
+      <TextRegular style={styles.orderText}>Address:{item.address}</TextRegular>
+      <TextSemiBold>{item.price}€</TextSemiBold>
+      </View>
+      {/* Aquí van los botones de edición y el de Advance */}
+      <View style={styles.actionButtonsContainer}>
+      <Pressable
+        onPress={() => { navigation.navigate('EditOrderScreen', { id: item.id, address: item.address, price: item.price }) }}
+        style={({ pressed }) => [
+          {
+            backgroundColor: pressed
+              ? GlobalStyles.brandBlueTap
+              : GlobalStyles.brandBlue
+          },
+          styles.actionButton
+        ]}>
+          <View style={[{ flex: 1, flexDirection: 'row', justifyContent: 'center' }]}>
+          <MaterialCommunityIcons name='pencil' color={'white'} size={20}></MaterialCommunityIcons>
+          <TextRegular style={styles.text}>Edit</TextRegular>
+          </View>
+        </Pressable>
+        { item.status !== 'delivered' &&
+        <Pressable
+          onPress={() => handleNextStatus(item)} // Hay que pasarle el order como parámetro
+          style={({ pressed }) => [
+            {
+              backgroundColor: pressed
+                ? GlobalStyles.brandBlueTap
+                : GlobalStyles.brandBlue
+            },
+            styles.actionButton
+          ]}>
+          <View style={[{ flex: 1, flexDirection: 'row', justifyContent: 'center' }]}>
+          <MaterialCommunityIcons name='skip-next' color={'white'} size={20}></MaterialCommunityIcons>
+          <TextRegular style={styles.text}>Advance</TextRegular>
+          </View>
+        </Pressable>
+        }
+        </View>
+      </ImageCard>
+    )
   }
 
   const renderEmptyOrdersList = () => {
@@ -131,9 +222,18 @@ export default function OrdersScreen ({ navigation, route }) {
       })
     }
   }
-
+  // Return principal
   return (
-      <></>
+      <>
+        <FlatList
+              style={styles.container}
+              data={orders}
+              renderItem={renderOrder}
+              keyExtractor={item => item.id.toString()}
+              ListHeaderComponent={renderHeader} // En el header es donde van las analíticas
+              ListEmptyComponent={renderEmptyOrdersList}
+        />
+      </>
   )
 }
 
@@ -175,6 +275,11 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     marginLeft: 5
   },
+  orderText: {
+    fontSize: 14,
+    color: 'black',
+    alignSelf: 'flex-start'
+  },
   actionButton: {
     borderRadius: 8,
     height: 40,
@@ -182,21 +287,24 @@ const styles = StyleSheet.create({
     margin: '1%',
     padding: 10,
     alignSelf: 'center',
-    flexDirection: 'column',
+    flexDirection: 'row',
     width: '50%'
   },
   actionButtonsContainer: {
     flexDirection: 'row',
     bottom: 5,
     position: 'absolute',
-    width: '90%'
+    width: '90%',
+    marginTop: 70,
+    gap: 8
   },
   analyticsContainer: {
     backgroundColor: GlobalStyles.brandPrimaryTap,
     paddingVertical: 10
   },
   analyticsRow: {
-
+    flexDirection: 'row',
+    gap: 15
   },
   analyticsCell: {
     margin: 5,
