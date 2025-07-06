@@ -26,9 +26,10 @@ function remove (id) {
 function getRestaurantOrders (restaurantId) {
   return get(`/restaurants/${restaurantId}/orders`)
 }
-
+// Estaba sin completar
 function getRestaurantAnalytics (restaurantId) {
-
+  // Para completar un endpoint nos fijamos en la ruta del controlador (backend)
+  return get(`/restaurants/${restaurantId}/analytics`)
 }
 
 export { getRestaurantOrders, getRestaurantAnalytics, getAll, getDetail, getRestaurantCategories, create, update, remove }

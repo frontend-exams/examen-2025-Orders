@@ -11,11 +11,11 @@ function getById (orderId) {
 function nextStatus (order) {
   switch (order.status) {
     case 'pending':
-      return patch(`/orders/${order.id}/confirm`)
+      return patch(`/orders/${order.id}/confirm`) // Ruta para poner a un pedido en proceso
     case 'in process':
-      return patch(`/orders/${order.id}/send`)
+      return patch(`/orders/${order.id}/send`) // Ruta para poner a un pedido en enviado
     case 'sent':
-      return patch(`/orders/${order.id}/deliver`)
+      return patch(`/orders/${order.id}/deliver`) // Ruta para poner a un pedido en entregado
     default:
       throw new Error('No further state transitions available')
   }

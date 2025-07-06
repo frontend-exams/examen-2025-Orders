@@ -18,21 +18,58 @@ import ImageCard from '../../components/ImageCard'
 
 export default function OrdersScreen ({ navigation, route }) {
   const [restaurant, setRestaurant] = useState({})
+  const [orders, setOrders] = useState([])
+  const [restaurantAnalytics, setRestaurantAnalytics] = useState({}) // Es un objeto por eso ponemos {}
 
   useEffect(() => {
     fetchRestaurantDetail()
+    fetchRestaurantOrders()
+    fetchRestaurantAnalytics()
   }, [route])
 
   const fetchRestaurantAnalytics = async () => {
-
+    // Como es una función asíncrona y vamos a acabar llamando a un endpoint, usamos try y catch
+    try {
+      const fetchedAnalytics = await getRestaurantAnalytics(route.params.id) // Estaba sin completar el restaurantAnalytics
+      setRestaurantAnalytics(fetchedAnalytics) // Ya hemos inicializado el estado restaurantAnalytics
+    } catch (error) {
+      showMessage({
+        message: `There was an error while retrieving restaurant analytics. ${error} `,
+        type: 'error',
+        style: GlobalStyles.flashStyle,
+        titleStyle: GlobalStyles.flashTextStyle
+      })
+    }
   }
 
   const fetchRestaurantOrders = async () => {
-
+    try {
+      const fetchedOrders = await getRestaurantOrders(route.params.id)
+      setOrders(fetchedOrders)
+    } catch (error) {
+      showMessage({
+        message: `There was an error while retrieving orders. ${error} `,
+        type: 'error',
+        style: GlobalStyles.flashStyle,
+        titleStyle: GlobalStyles.flashTextStyle
+      })
+    }
   }
 
   const handleNextStatus = async (order) => {
-
+    try {
+      // Avanzamos el estado del pedido y recargamos la página con el fetch para que se vea el cambio efectuado
+      await nextStatus(order) // No hace falta ni que lo asignemos a una variable, es simplemente actualizar un objeto en el backend y luego mostrarlo
+      // El nextStatus actualiza internamente al pedido, ahora lo que tenemos que hacer es llamar a la búsqueda de pedidos para que se efectúen los cambios
+      await fetchRestaurantOrders() // Recordemos que es una función asíncrona así que debemos poner await
+    } catch (error) {
+      showMessage({
+        message: `There was an error while advancing the order status. ${error} `,
+        type: 'error',
+        style: GlobalStyles.flashStyle,
+        titleStyle: GlobalStyles.flashTextStyle
+      })
+    }
   }
 
   const renderAnalytics = () => {
@@ -44,7 +81,7 @@ export default function OrdersScreen ({ navigation, route }) {
                 Invoiced today
               </TextRegular>
               <TextSemiBold textStyle={styles.text}>
-              TO DO
+              {restaurantAnalytics.invoicedToday}
               </TextSemiBold>
             </View>
             <View style={styles.analyticsCell}>
@@ -52,7 +89,7 @@ export default function OrdersScreen ({ navigation, route }) {
                 #Pending orders
               </TextRegular>
               <TextSemiBold textStyle={styles.text}>
-              TO DO
+              {restaurantAnalytics.numPendingOrders}
               </TextSemiBold>
             </View>
           </View>
@@ -63,7 +100,7 @@ export default function OrdersScreen ({ navigation, route }) {
                   #Delivered today
                 </TextRegular>
                 <TextSemiBold textStyle={styles.text}>
-                TO DO
+                {restaurantAnalytics.numDeliveredTodayOrders}
                 </TextSemiBold>
               </View>
               <View style={styles.analyticsCell}>
@@ -71,7 +108,7 @@ export default function OrdersScreen ({ navigation, route }) {
                   #Yesterday orders
                 </TextRegular>
                 <TextSemiBold textStyle={styles.text}>
-                TO DO
+                {restaurantAnalytics.numYesterdayOrders}
                 </TextSemiBold>
               </View>
           </View>
@@ -89,6 +126,7 @@ export default function OrdersScreen ({ navigation, route }) {
             <TextRegular textStyle={styles.description}>{restaurant.restaurantCategory ? restaurant.restaurantCategory.name : ''}</TextRegular>
           </View>
         </ImageBackground>
+        {renderAnalytics()} {/* Importante llamar a la función con las dos llaves () */}
       </View>
     )
   }
@@ -107,7 +145,54 @@ export default function OrdersScreen ({ navigation, route }) {
   }
 
   const renderOrder = ({ item }) => {
-
+    return (
+      <ImageCard
+        imageUri={getOrderImage(item.status)}
+        title= {'Order created at ' + item.createdAt}
+      >
+        <TextRegular>Status: {item.status}</TextRegular>
+        <TextRegular>Address: {item.address}</TextRegular>
+        <TextSemiBold>{item.price}€</TextSemiBold>
+          {/* Lógica de los botones */}
+        <View style={styles.actionButtonsContainer}>
+        <Pressable
+          onPress={() => navigation.navigate('EditOrderScreen', { id: item.id })
+          }
+          style={({ pressed }) => [
+            {
+              backgroundColor: pressed
+                ? GlobalStyles.brandBlueTap
+                : GlobalStyles.brandBlue
+            },
+            styles.actionButton
+          ]}>
+        <View style={[{ flex: 1, flexDirection: 'row', justifyContent: 'center' }]}>
+          <MaterialCommunityIcons name='pencil' color={'white'} size={20}/>
+          <TextRegular textStyle={styles.text}>
+            Edit
+          </TextRegular>
+        </View>
+        </Pressable>
+        <Pressable
+          onPress={() => handleNextStatus(item) }
+          style={({ pressed }) => [
+            {
+              backgroundColor: pressed
+                ? GlobalStyles.brandGreenTap
+                : GlobalStyles.brandGreen
+            },
+            styles.actionButton
+          ]}>
+        <View style={[{ flex: 1, flexDirection: 'row', justifyContent: 'center' }]}>
+          <MaterialCommunityIcons name='skip-next' color={'white'} size={20}/>
+          <TextRegular textStyle={styles.text}>
+            Advance
+          </TextRegular>
+        </View>
+        </Pressable>
+        </View>
+      </ImageCard>
+    )
   }
 
   const renderEmptyOrdersList = () => {
@@ -133,7 +218,16 @@ export default function OrdersScreen ({ navigation, route }) {
   }
 
   return (
-      <></>
+      <>
+      <FlatList
+          style={styles.container}
+          data={orders}
+          renderItem={renderOrder}
+          keyExtractor={item => item.id.toString()}
+          ListHeaderComponent={renderHeader}
+          ListEmptyComponent={renderEmptyOrdersList}
+          />
+      </>
   )
 }
 
@@ -195,8 +289,8 @@ const styles = StyleSheet.create({
     backgroundColor: GlobalStyles.brandPrimaryTap,
     paddingVertical: 10
   },
-  analyticsRow: {
-
+  analyticsRow: { // Este estaba sin completar
+    flexDirection: 'row'
   },
   analyticsCell: {
     margin: 5,
