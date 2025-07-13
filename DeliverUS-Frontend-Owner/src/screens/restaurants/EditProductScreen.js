@@ -44,7 +44,7 @@ export default function EditProductScreen ({ navigation, route }) {
       .integer()
       .required('Product category is required')
   })
-
+  // Este useEffect es para el DropDownPicker
   useEffect(() => {
     async function fetchProductCategories () {
       try {

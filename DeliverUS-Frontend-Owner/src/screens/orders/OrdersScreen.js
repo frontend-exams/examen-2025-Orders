@@ -18,21 +18,59 @@ import ImageCard from '../../components/ImageCard'
 
 export default function OrdersScreen ({ navigation, route }) {
   const [restaurant, setRestaurant] = useState({})
+  const [orders, setOrders] = useState([])
+  const [restaurantAnalytics, setRestaurantAnalytics] = useState([])
 
   useEffect(() => {
     fetchRestaurantDetail()
+    // Solución
+    fetchRestaurantOrders()
+    fetchRestaurantAnalytics()
   }, [route])
 
   const fetchRestaurantAnalytics = async () => {
-
+    // En funciones asíncronas (las que llamamos a los endpoints), SIEMPRE SE PONE TRY-CATCH
+    try {
+      const fetchedRestaurantAnalytics = await getRestaurantAnalytics(route.params.id)
+      setRestaurantAnalytics(fetchedRestaurantAnalytics)
+    } catch (error) {
+      showMessage({
+        message: `There was an error while retrieving restaurant analytics (id ${route.params.id}). ${error}`,
+        type: 'error',
+        style: GlobalStyles.flashStyle,
+        titleStyle: GlobalStyles.flashTextStyle
+      })
+    }
   }
 
   const fetchRestaurantOrders = async () => {
-
+    try {
+      const fetchedOrders = await getRestaurantOrders(route.params.id) // Poner con el route.params.id si no, no funciona
+      setOrders(fetchedOrders)
+    } catch (error) {
+      showMessage({
+        message: `There was an error while retrieving restaurant orders (id ${route.params.id}). ${error}`,
+        type: 'error',
+        style: GlobalStyles.flashStyle,
+        titleStyle: GlobalStyles.flashTextStyle
+      })
+    }
   }
 
   const handleNextStatus = async (order) => {
-
+    // Es una función asíncrona porque llama a los endpoints, usamos TRY-CATCH
+    try {
+      await nextStatus(order) // Actualizamos el estado
+      // Ahora hacemos una búsqueda de todos los estados para que se actualice en pantalla
+      await fetchRestaurantOrders() // AQUÍ SE PONE EL AWAIT
+    } catch (error) {
+      showMessage({
+        message: `There was an error while trying to advance order status. ${error}`,
+        type: 'error',
+        style: GlobalStyles.flashStyle,
+        titleStyle: GlobalStyles.flashTextStyle
+      })
+    }
   }
 
   const renderAnalytics = () => {
@@ -44,7 +82,7 @@ export default function OrdersScreen ({ navigation, route }) {
                 Invoiced today
               </TextRegular>
               <TextSemiBold textStyle={styles.text}>
-              TO DO
+              {restaurantAnalytics.invoicedToday}
               </TextSemiBold>
             </View>
             <View style={styles.analyticsCell}>
@@ -52,7 +90,7 @@ export default function OrdersScreen ({ navigation, route }) {
                 #Pending orders
               </TextRegular>
               <TextSemiBold textStyle={styles.text}>
-              TO DO
+              {restaurantAnalytics.numPendingOrders}
               </TextSemiBold>
             </View>
           </View>
@@ -63,7 +101,7 @@ export default function OrdersScreen ({ navigation, route }) {
                   #Delivered today
                 </TextRegular>
                 <TextSemiBold textStyle={styles.text}>
-                TO DO
+                {restaurantAnalytics.numDeliveredTodayOrders}
                 </TextSemiBold>
               </View>
               <View style={styles.analyticsCell}>
@@ -71,7 +109,7 @@ export default function OrdersScreen ({ navigation, route }) {
                   #Yesterday orders
                 </TextRegular>
                 <TextSemiBold textStyle={styles.text}>
-                TO DO
+                {restaurantAnalytics.numYesterdayOrders}
                 </TextSemiBold>
               </View>
           </View>
@@ -89,6 +127,7 @@ export default function OrdersScreen ({ navigation, route }) {
             <TextRegular textStyle={styles.description}>{restaurant.restaurantCategory ? restaurant.restaurantCategory.name : ''}</TextRegular>
           </View>
         </ImageBackground>
+        {renderAnalytics()}
       </View>
     )
   }
@@ -107,7 +146,56 @@ export default function OrdersScreen ({ navigation, route }) {
   }
 
   const renderOrder = ({ item }) => {
-
+    return ( // Que no se te olvide el return loco
+      <ImageCard
+        imageUri={getOrderImage(item.status)}
+        title={<TextSemiBold>Order created at {item.createdAt} </TextSemiBold>} // Así hemos metido etiquetas JSX en un prop
+      >
+        <TextRegular>Status: {item.status}</TextRegular>
+        <TextRegular>Address: {item.address}</TextRegular>
+        <TextSemiBold>{item.price}€</TextSemiBold>
+        {/* Siempre que queramos poner botones que no se nos olvide el actionButtonsContainer */}
+        <View style={styles.actionButtonsContainer}>
+          <Pressable
+            onPress={() => navigation.navigate('EditOrderScreen', { id: item.id })
+            }
+            style={({ pressed }) => [
+              {
+                backgroundColor: pressed
+                  ? GlobalStyles.brandBlueTap
+                  : GlobalStyles.brandBlue
+              },
+              styles.actionButton
+            ]}>
+          <View style={[{ flex: 1, flexDirection: 'row', justifyContent: 'center' }]}>
+            <MaterialCommunityIcons name='pencil' color={'white'} size={20}/>
+            <TextRegular textStyle={styles.text}>
+              Edit
+            </TextRegular>
+          </View>
+        </Pressable>
+      {item.status !== 'delivered' && (
+          <Pressable
+            onPress={() => handleNextStatus(item)}
+            style={({ pressed }) => [
+              {
+                backgroundColor: pressed
+                  ? GlobalStyles.brandGreenTap // Es el verde agua
+                  : GlobalStyles.brandGreen
+              },
+              styles.actionButton
+            ]}>
+          <View style={[{ flex: 1, flexDirection: 'row', justifyContent: 'center' }]}>
+            <MaterialCommunityIcons name='skip-next' color={'white'} size={20}/>
+            <TextRegular textStyle={styles.text}>
+              Advance
+            </TextRegular>
+          </View>
+        </Pressable>
+      )}
+        </View>
+      </ImageCard>
+    )
   }
 
   const renderEmptyOrdersList = () => {
@@ -133,7 +221,16 @@ export default function OrdersScreen ({ navigation, route }) {
   }
 
   return (
-      <></>
+      <>
+      <FlatList
+        style={styles.container}
+        data={orders}
+        renderItem={renderOrder}
+        keyExtractor={item => item.id.toString()}
+        ListHeaderComponent={renderHeader}
+        ListEmptyComponent={renderEmptyOrdersList}
+        />
+      </>
   )
 }
 
@@ -196,7 +293,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10
   },
   analyticsRow: {
-
+    flexDirection: 'row'
   },
   analyticsCell: {
     margin: 5,
